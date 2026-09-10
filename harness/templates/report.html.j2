@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Eval Report — {{ generated }}</title>
+<style>
+  :root {
+    --bg:#0f1115; --panel:#171a21; --panel2:#1f2430; --fg:#e6e9ef; --muted:#9aa4b2;
+    --line:#2a2f3a; --pass:#3fb950; --flaky:#d29922; --fail:#f85149; --accent:#58a6ff;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  .wrap { max-width:1000px; margin:0 auto; padding:28px 20px 80px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px 18px; font-size:12px;
+    color:var(--muted); background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; padding:12px 16px; margin-bottom:18px; }
+  .meta b { color:var(--fg); font-weight:600; }
+  .tiles { display:flex; gap:12px; margin-bottom:8px; flex-wrap:wrap; }
+  .tile { flex:1; min-width:120px; background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; padding:14px 16px; }
+  .tile .n { font-size:26px; font-weight:700; }
+  .tile .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .tile.pass .n { color:var(--pass); } .tile.flaky .n { color:var(--flaky); }
+  .tile.fail .n { color:var(--fail); }
+  .suiteline { color:var(--muted); font-size:13px; margin:10px 2px 22px; }
+  .suiteline b { color:var(--fg); }
+  .cmp { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:14px 16px; margin-bottom:22px; }
+  .cmp.reg { border-color:var(--fail); }
+  .cmp table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
+  .cmp th,.cmp td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--line); }
+  .cmp tr.reg td { color:var(--fail); }
+  details.case { background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; margin-bottom:10px; overflow:hidden; }
+  details.case[open] { border-color:var(--accent); }
+  summary { cursor:pointer; list-style:none; padding:12px 16px; display:flex;
+    align-items:center; gap:12px; }
+  summary::-webkit-details-marker { display:none; }
+  .badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    padding:3px 9px; border-radius:999px; }
+  .badge.pass { background:rgba(63,185,80,.15); color:var(--pass); }
+  .badge.flaky { background:rgba(210,153,34,.16); color:var(--flaky); }
+  .badge.fail { background:rgba(248,81,73,.16); color:var(--fail); }
+  .cid { font-family:var(--mono); font-weight:600; }
+  .fm { color:var(--muted); font-size:12px; }
+  .rate { margin-left:auto; font-family:var(--mono); color:var(--muted); }
+  .body { padding:0 16px 16px; border-top:1px solid var(--line); }
+  .notes { color:var(--muted); font-size:13px; margin:12px 0; font-style:italic; }
+  .asserts { margin:10px 0; }
+  .arow { display:flex; align-items:center; gap:10px; font-size:13px; padding:3px 0;
+    font-family:var(--mono); }
+  .arow .pct { width:44px; text-align:right; }
+  .arow.ok .pct { color:var(--pass); } .arow.part .pct { color:var(--flaky); }
+  .arow.bad .pct { color:var(--fail); }
+  .judged { font-size:10px; background:rgba(88,166,255,.15); color:var(--accent);
+    padding:1px 6px; border-radius:4px; }
+  .trace { background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:12px 14px; margin-top:12px; }
+  .trace h4 { margin:0 0 8px; font-size:12px; color:var(--fail); text-transform:uppercase; }
+  .tc { border-left:2px solid var(--line); padding:4px 0 4px 12px; margin:6px 0;
+    font-family:var(--mono); font-size:12px; }
+  .tc .tn { color:var(--accent); }
+  .tc.err { border-left-color:var(--fail); }
+  .kv { color:var(--muted); }
+  pre { white-space:pre-wrap; word-break:break-word; margin:4px 0 0;
+    font-family:var(--mono); font-size:12px; }
+  .fo { background:#0b0d11; border-radius:6px; padding:8px 10px; margin-top:8px; }
+  .afail { color:var(--fail); } .apass { color:var(--pass); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Agent Evaluation Report</h1>
+  <div class="sub">generated {{ generated }}</div>
+
+  <div class="meta">
+    <span><b>model</b> {{ model }}</span>
+    <span><b>judge</b> {{ judge_model }}</span>
+    <span><b>temperature</b> {{ temperature }}</span>
+    <span><b>frozen clock</b> {{ frozen_now }}</span>
+    <span><b>k</b> {{ k }}</span>
+  </div>
+
+  <div class="tiles">
+    <div class="tile pass"><div class="n">{{ counts.pass }}</div><div class="l">pass</div></div>
+    <div class="tile flaky"><div class="n">{{ counts.flaky }}</div><div class="l">flaky</div></div>
+    <div class="tile fail"><div class="n">{{ counts.fail }}</div><div class="l">fail</div></div>
+  </div>
+  <div class="suiteline">
+    suite pass rate <b>{{ suite_pass }}/{{ suite_n }}</b>
+    ({{ '%.0f'|format(suite_rate*100) }}%),
+    95% Wilson CI [{{ '%.0f'|format(suite_ci[0]*100) }}%, {{ '%.0f'|format(suite_ci[1]*100) }}%]
+  </div>
+
+  {% if comparison %}
+  <div class="cmp {{ 'reg' if comparison.regressed else '' }}">
+    <b>Baseline comparison.</b>
+    Suite: baseline {{ comparison.baseline_total }}/{{ comparison.baseline_n }}
+    vs current {{ comparison.current_total }}/{{ comparison.current_n }}
+    — two-proportion z={{ '%.2f'|format(comparison.z) }},
+    p={{ '%.3f'|format(comparison.p_value) }}
+    → <b>{{ 'SUITE REGRESSION' if comparison.regressed else 'no significant suite change' }}</b>.
+    <table>
+      <tr><th>case</th><th>baseline</th><th>current</th><th>Wilson lower</th><th>flag</th></tr>
+      {% for c in comparison.cases %}
+      <tr class="{{ 'reg' if c.regressed else '' }}">
+        <td class="cid">{{ c.case_id }}</td>
+        <td>{{ c.baseline_pass }}/{{ c.baseline_k }}</td>
+        <td>{{ c.current_pass }}/{{ c.current_k }}</td>
+        <td>{{ '%.0f'|format(c.wilson_lo*100) }}%</td>
+        <td>{{ '⚠ regressed' if c.regressed else ('· '+c.note if c.note else 'ok') }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div class="sub" style="margin-top:8px">Per-case flags are triage signals, not verdicts (small k). Trust the suite z-test.</div>
+  </div>
+  {% endif %}
+
+  {% for c in cases %}
+  <details class="case" {{ 'open' if c.outcome != 'pass' else '' }}>
+    <summary>
+      <span class="badge {{ c.outcome }}">{{ c.outcome }}</span>
+      <span class="cid">{{ c.id }}</span>
+      <span class="fm">{{ c.failure_mode }}</span>
+      <span class="rate">{{ c.pass_count }}/{{ c.k }}</span>
+    </summary>
+    <div class="body">
+      <div class="notes">{{ c.notes }}</div>
+      <div class="asserts">
+        {% for a in c.per_assertion %}
+        <div class="arow {{ 'ok' if a.rate == 1.0 else ('bad' if a.rate == 0.0 else 'part') }}">
+          <span class="pct">{{ '%.0f'|format(a.rate*100) }}%</span>
+          <span>{{ a.name }}</span>
+          {% if a.judged %}<span class="judged">judge</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% if c.first_fail %}
+      <div class="trace">
+        <h4>first failing repetition (#{{ c.first_fail.rep }})</h4>
+        <div class="kv">termination: {{ c.first_fail.termination_reason }} ·
+          steps: {{ c.first_fail.total_steps }} ·
+          tokens: {{ c.first_fail.tokens_in }}/{{ c.first_fail.tokens_out }}</div>
+        <pre class="kv">input: {{ c.first_fail.input }}</pre>
+        {% for tc in c.first_fail.tool_calls %}
+        <div class="tc {{ 'err' if tc.error else '' }}">
+          <span class="kv">step {{ tc.step }}</span> ·
+          <span class="tn">{{ tc.tool_name }}</span>({{ tc.arguments }})
+          <div class="kv">→ {{ tc.result }}{% if tc.error %} <span class="afail">ERROR: {{ tc.error }}</span>{% endif %}</div>
+        </div>
+        {% else %}
+        <div class="kv">(no tool calls)</div>
+        {% endfor %}
+        <div class="fo">
+          <div class="kv">final output:</div>
+          <pre>{{ c.first_fail.final_output or '(empty)' }}</pre>
+          {% if c.first_fail.parse_error %}<pre class="afail">parse_error: {{ c.first_fail.parse_error }}</pre>{% endif %}
+        </div>
+        <div style="margin-top:10px">
+          {% for a in c.first_fail.assertions %}
+          <div class="arow">
+            <span class="{{ 'apass' if a.passed else 'afail' }}">{{ '✓' if a.passed else '✗' }}</span>
+            <span>{{ a.name }}</span>
+            {% if not a.passed %}<span class="afail">— {{ a.message }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </details>
+  {% endfor %}
+</div>
+</body>
+</html>
