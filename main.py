@@ -1,11 +1,12 @@
 """Serve the evaluation reports. Entry point for Replit.
 
-    python main.py            # serves at http://0.0.0.0:8000
-      /            -> latest run's report.html
-      /runs/<id>   -> a specific run's report.html
-      /runs        -> index of all runs
+    python main.py            # serves at http://0.0.0.0:$PORT (default 8000)
+      /            -> latest report (newest run, else the committed sample_run)
+      /runs        -> index of all available reports
+      /runs/<id>   -> a specific report
 
-If no run exists yet, the index explains how to produce one.
+`sample_run/` is a committed run so a fresh deploy shows a real report out of
+the box; live runs written to `runs/<timestamp>/` take precedence.
 """
 from __future__ import annotations
 
@@ -17,25 +18,44 @@ from pathlib import Path
 from harness.config import RUNS_DIR
 
 PORT = int(os.environ.get("PORT", "8000"))
+SAMPLE_DIR = Path(__file__).resolve().parent / "sample_run"
 
 
-def _runs() -> list[str]:
-    if not RUNS_DIR.exists():
-        return []
-    return sorted((d.name for d in RUNS_DIR.iterdir()
-                   if d.is_dir() and (d / "report.html").exists()), reverse=True)
+def _report_dirs() -> list[tuple[str, Path]]:
+    """(id, dir) for every available report, newest live runs first, sample last."""
+    out: list[tuple[str, Path]] = []
+    if RUNS_DIR.exists():
+        for d in sorted((p for p in RUNS_DIR.iterdir() if p.is_dir()),
+                        key=lambda p: p.name, reverse=True):
+            if (d / "report.html").exists():
+                out.append((d.name, d))
+    if (SAMPLE_DIR / "report.html").exists():
+        out.append(("sample_run", SAMPLE_DIR))
+    return out
 
 
 def _index_html() -> str:
-    runs = _runs()
-    if not runs:
-        return ("<h1>Agent Eval Harness</h1><p>No runs yet. Produce one with:</p>"
+    rows = _report_dirs()
+    if not rows:
+        body = ("<p>No reports yet. Generate one with:</p>"
                 "<pre>python -m harness.run --k 1 --cases all</pre>")
-    items = "".join(
-        f'<li><a href="/runs/{html.escape(r)}">{html.escape(r)}</a>'
-        f'{" — latest" if i == 0 else ""}</li>' for i, r in enumerate(runs))
-    return (f"<h1>Agent Eval Harness — runs</h1><ul>{items}</ul>"
-            f'<p><a href="/">/ always shows the latest ({html.escape(runs[0])})</a></p>')
+    else:
+        items = "".join(
+            f'<li><a href="/runs/{html.escape(rid)}">{html.escape(rid)}</a>'
+            f'{"  — latest" if i == 0 else ""}'
+            f'{"  (committed sample)" if rid == "sample_run" else ""}</li>'
+            for i, (rid, _) in enumerate(rows))
+        body = (f'<p><a href="/">→ open the latest report</a></p><ul>{items}</ul>')
+    return f"""<!doctype html><meta charset="utf-8">
+<title>Agent Evaluation Harness</title>
+<style>body{{font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+max-width:720px;margin:60px auto;padding:0 20px;color:#e6e9ef;background:#0f1115}}
+a{{color:#58a6ff}} h1{{font-size:22px}} pre{{background:#171a21;padding:10px;border-radius:6px}}
+li{{margin:4px 0;font-family:ui-monospace,Menlo,monospace}}</style>
+<h1>Agent Evaluation Harness</h1>
+<p>A test harness that runs an AI agent against a suite of cases and reports whether
+it behaved correctly — so a prompt or model change can be checked for regressions
+before it reaches users.</p>{body}"""
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -48,19 +68,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         path = self.path.rstrip("/") or "/"
-        runs = _runs()
+        rows = dict(_report_dirs())
+        order = list(rows)
         if path == "/":
-            if runs:
-                return self._send((RUNS_DIR / runs[0] / "report.html").read_bytes())
+            if order:
+                return self._send((rows[order[0]] / "report.html").read_bytes())
             return self._send(_index_html().encode())
         if path == "/runs":
             return self._send(_index_html().encode())
         if path.startswith("/runs/"):
             rid = path[len("/runs/"):]
-            report = RUNS_DIR / rid / "report.html"
-            if report.exists() and RUNS_DIR in report.resolve().parents:
-                return self._send(report.read_bytes())
-            return self._send(b"<h1>404</h1> run not found", 404)
+            if rid in rows:
+                return self._send((rows[rid] / "report.html").read_bytes())
+            return self._send(b"<h1>404</h1> report not found", 404)
+        if path in ("/health", "/healthz"):
+            return self._send(b"ok", ctype="text/plain")
         return self._send(b"<h1>404</h1>", 404)
 
     def log_message(self, *a):  # quiet
