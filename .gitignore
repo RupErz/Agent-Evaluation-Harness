@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+runs/
+harness/fixture/finance.db
+.pytest_cache/
