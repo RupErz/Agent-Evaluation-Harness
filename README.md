@@ -57,6 +57,31 @@ The runner writes `runs/<timestamp>/traces.jsonl` and a self-contained
 The pinned model is read from `AGENT_MODEL` (default the dated snapshot
 `claude-haiku-4-5-20251001`); the LLM judge from `JUDGE_MODEL` (`claude-sonnet-5`).
 
+## Deploy on Replit
+
+The repo is deploy-ready. `main.py` reads `$PORT`, binds `0.0.0.0`, and serves the
+committed `sample_run/` report — so the deployed URL shows a real k=5 report on the
+very first load (no run needed).
+
+1. **Import** the GitHub repo into Replit (or open it if already there).
+2. **Run** → the webview shows the report at `/`. `.replit` is preconfigured
+   (`run = python main.py`, port 8000 → 80).
+3. **Deploy** (Autoscale) → you get a public `*.replit.app` URL. No API key is needed
+   just to serve the report.
+
+To run *new* evaluations on Replit (optional — they cost tokens):
+
+```bash
+# in the Replit shell
+python -m harness.fixture.seed                 # build the DB (fixture JSON is committed)
+python -m harness.run --k 1 --cases all        # needs CLAUDE_API_KEY as a Replit Secret
+```
+
+New runs land in `runs/<timestamp>/` and automatically take precedence over the
+committed sample at `/`. Set **`CLAUDE_API_KEY`** as a Replit **Secret** (never commit
+`.env`). Routes: `/` latest report · `/runs` index · `/runs/<id>` a specific run ·
+`/healthz` health check.
+
 ## How non-determinism is handled
 
 Frozen clock, committed fixture, pinned *dated-snapshot* model, and `temperature=0`
