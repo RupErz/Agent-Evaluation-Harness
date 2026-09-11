@@ -81,6 +81,20 @@ nothing subtler. Given more budget the fix is one of:
 We deliberately did **not** build a significance test we can't explain. A clearly
 documented threshold rule beats a p-value nobody can defend in a conversation.
 
+### The ceiling effect (why every Wilson bound is identical)
+
+The current baseline passes 5/5 on every case, so every per-case Wilson lower bound
+is the same number (57% at `k=5`). Two consequences worth naming:
+
+- The suite can detect **regressions but not improvements** — there is no headroom
+  above 5/5 to move into.
+- A regression must be **large** to clear the interval: a case has to fall to 2/5 or
+  worse (40% < 57%) before the per-case check flags it.
+
+This is expected and fine for a strong agent on a passing suite. It is also exactly
+why the mutation section carries the weight of "the tests work": an all-green
+baseline proves the agent behaves, not that the suite would notice if it stopped.
+
 ## A note on the LLM judge
 
 Exactly one case (`F_closed_account_balance`) uses `JudgedBy`, because the thing
