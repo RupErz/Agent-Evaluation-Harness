@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent Eval Report — 2026-09-10 19:42:21</title>
+<title>Agent Eval Report — 2026-09-10 20:45:57</title>
 <style>
   :root {
     --bg:#0f1115; --panel:#171a21; --panel2:#1f2430; --fg:#e6e9ef; --muted:#9aa4b2;
@@ -96,7 +96,7 @@
 <body>
 <div class="wrap">
   <h1>Agent Evaluation Report</h1>
-  <div class="sub">generated 2026-09-10 19:42:21</div>
+  <div class="sub">generated 2026-09-10 20:45:57</div>
 
   <section class="intro">
     <h2>What this is</h2>
@@ -184,7 +184,7 @@
     <div class="trace">
   <h4>A_two_tool_savings_share under: Remove the calculate tool from the tool list</h4>
   <div class="kv">termination: answered ·
-    steps: 1 · tokens: 2497/260</div>
+    steps: 1 · tokens: 2497/230</div>
   <pre class="kv">input: What percentage of my total money (checking plus savings) is held in my savings account?</pre>
   
   <div class="tc ">
@@ -198,13 +198,12 @@
     <pre>Based on your account data:
 - **Checking account** (Everyday Checking): $4,327.61
 - **Savings account** (High-Yield Savings): $15,803.42
+- **Total**: $20,131.03
 
-**Total liquid funds**: $4,327.61 + $15,803.42 = $20,131.03
-
-**Percentage in savings**: $15,803.42 ÷ $20,131.03 = 78.5%
+Your savings account represents **78.5%** of your total money held in checking plus savings accounts.
 
 ```json
-{"answer": "78.5% of your total money (checking plus savings) is held in your savings account.", "value": 78.5, "currency": null, "sources": ["Everyday Checking account balance: $4,327.61", "High-Yield Savings account balance: $15,803.42"], "confidence": "high", "refused": false, "refusal_reason": null}
+{"answer": "Your savings account holds 78.5% of your total money (checking plus savings). You have $15,803.42 in savings out of a combined total of $20,131.03.", "value": 78.5, "currency": "USD", "sources": ["get_accounts"], "confidence": "high", "refused": false, "refusal_reason": null}
 ```</pre>
     
   </div>
@@ -703,7 +702,7 @@
         
         <div class="arow ok">
           <span class="pct">100%</span>
-          <span>MentionsNoneOf(['0.00'])</span>
+          <span>DoesNotReportZeroBalance</span>
           
         </div>
         
@@ -749,7 +748,7 @@
         
         <div class="arow ok">
           <span class="pct">100%</span>
-          <span>MentionsNoneOf(['0.00'])</span>
+          <span>DoesNotReportZeroBalance</span>
           
         </div>
         
