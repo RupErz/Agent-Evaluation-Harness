@@ -10,6 +10,16 @@ correctness is *computable*: the right answer to "how much did I spend on grocer
 last month" is a number derivable from fixture data, not a matter of taste. The
 agent is scaffolding; the harness is the point.
 
+## How it works
+
+![System flow: 15 test questions feed the harness, which drives the agent under test (Claude Haiku) against fixture data; the checks compare expected vs actual (with one wording check by Claude Sonnet) and produce a pass/fail/flaky report.](docs/eval_harness_system_flow.png)
+
+Test questions go to the harness, which runs the agent (Claude Haiku) against
+committed fixture data and records every tool call. The checks compare what the
+agent did against expectations computed from the fixture — with one wording check
+delegated to a separate judge (Claude Sonnet) — and the result is a pass/fail/flaky
+report.
+
 ## What it tests
 
 Seven failure modes, 15 cases (two to three each). Each case declares the single
