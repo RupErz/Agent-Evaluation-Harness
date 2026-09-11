@@ -1,110 +1,121 @@
-# Design notes: regression vs. variance
+# Design notes: regression versus variance
 
-This is the part of the harness that matters most, so it is worth stating the
-reasoning in full. The goal is to tell a *real* regression (the change made the
-agent worse) apart from *noise* (the model is non-deterministic and would have
-wobbled anyway).
+This is the part of the harness that matters most, so it is worth walking through
+the reasoning in full. The whole job here is to tell a real regression, where a
+change actually made the agent worse, apart from ordinary noise, where the model is
+not deterministic and would have wobbled on its own anyway.
 
-## Step 1 — eliminate the variance that isn't the model's
+## Step 1: remove the variance that is not the model's
 
-Before measuring model variance we remove every other source of it:
+Before we can measure how much the model itself varies, we take away every other
+reason a run could come out different.
 
-- **Frozen clock.** `FROZEN_NOW = 2026-08-15T12:00:00` is injected into the agent
-  context and every tool. "Last month" resolves to July 2026 today and in six
-  months. The agent never calls `datetime.now()`.
-- **Committed fixture.** The SQLite DB is seeded from a version-controlled JSON
-  file by a deterministic, seeded generator. The data cannot drift.
-- **Pinned model.** `AGENT_MODEL` is a *dated snapshot* (`claude-haiku-4-5-20251001`),
-  never an alias like `claude-haiku-4-5`. An alias can silently move under you and
-  invalidate the baseline — which would defeat the entire project.
-- **`temperature = 0`.** This SDK generation removed `temperature` as a named
-  parameter; Haiku 4.5 still honours it via `extra_body`, so we genuinely pin it.
-  Newer models (e.g. the Sonnet 5 judge) reject it and are left at their default —
-  see `sampling_extra_body` in `config.py`.
+- **Frozen clock.** `FROZEN_NOW = 2026-08-15T12:00:00` is handed to the agent and to
+  every tool that needs a date. "Last month" means July 2026 today, and it will
+  still mean July 2026 six months from now. The agent never calls `datetime.now()`.
+- **Committed fixture.** The SQLite database is built from a version controlled JSON
+  file by a seeded generator that always produces the same data, so nothing about
+  the data can quietly drift.
+- **Pinned model.** `AGENT_MODEL` is a dated snapshot (`claude-haiku-4-5-20251001`),
+  never a moving alias like `claude-haiku-4-5`. An alias can change under you without
+  warning and quietly invalidate the baseline, which would defeat the entire point
+  of the project.
+- **`temperature = 0`.** This SDK generation dropped `temperature` as a named
+  parameter, but Haiku 4.5 still honours it through `extra_body`, so we really do
+  pin it. Newer models such as the Sonnet judge reject it and run at their own
+  default. See `sampling_extra_body` in `config.py`.
 
-Everything that remains is **genuine model variance**, which is what we want to
-measure. `temperature = 0` *reduces* but does **not** eliminate it: the same
-request can still produce different tool sequences or wording across runs. We do
-not claim determinism we don't have.
+Whatever is left after all of that is genuine model variance, and that is exactly
+what we are trying to measure. Setting `temperature = 0` lowers that variance but
+does not remove it. The same request can still come back with a different tool
+sequence or different wording, so we are careful not to claim a determinism we do
+not actually have.
 
-## Step 2 — the baseline
+## Step 2: the baseline
 
-`baseline.json` records, per case, the pass count out of `k`, plus the model
-string and the date. It is committed and regenerated **only** deliberately via
-`--write-baseline` (and, per our build order, only after mutation testing passes
-— recording a baseline before the suite is proven just enshrines whatever the
-agent happened to do that day).
+`baseline.json` records, for each case, how many of the `k` runs passed, along with
+the model string and the date. It is committed to the repo and only ever regenerated
+on purpose through `--write-baseline`. In our build order we write it only after
+mutation testing passes, because recording a baseline before the suite is proven
+just freezes in whatever the agent happened to do that day.
 
-## Step 3 — the decision rule
+## Step 3: the decision rule
 
-### Per case — Wilson score interval (a triage flag, not a verdict)
+### Per case: the Wilson interval, a triage flag rather than a verdict
 
-For a baseline of `passes` out of `k`, we compute the
+For a baseline of some number of passes out of `k`, we compute the
 [Wilson score interval](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Wilson_score_interval)
-on the proportion at 95%. A new run is **flagged** when its pass rate falls below
-the interval's lower bound.
+on that proportion at 95 percent. A new run gets flagged when its pass rate falls
+below the lower bound of that interval.
 
-Wilson (rather than the normal approximation) because `k` is tiny and the
-proportions live near 0 and 1, where the normal approximation is worst. Concretely
-at `k = 5`:
+We reach for Wilson rather than the normal approximation because `k` is tiny and the
+pass rates sit right up near 0 and 1, which is exactly where the normal
+approximation is at its worst. At `k = 5` it looks like this.
 
-| baseline | Wilson 95% lower bound | flags a new run at |
+| baseline | Wilson 95 percent lower bound | flags a new run at |
 |---|---|---|
-| 5/5 | ~0.566 | ≤ 2/5 |
-| 4/5 | ~0.376 | ≤ 1/5 |
+| 5/5 | about 0.566 | 2/5 or lower |
+| 4/5 | about 0.376 | 1/5 or lower |
 
-This is why a per-case comparison is a **triage flag, not a verdict**: at `k = 5`
-it can only catch a large drop (roughly 100% → 20%). A case going 5/5 → 4/5 is
-**not** evidence of anything.
+This is why a per case comparison is a triage flag and not a verdict. At `k = 5` it
+can only catch a large drop, roughly 100 percent down to 20 percent. A case slipping
+from 5/5 to 4/5 tells you nothing on its own.
 
-### Suite level — two-proportion z-test (the number to trust)
+### Suite level: the two proportion z test, the number to trust
 
-We compare total passes across all cases — `n = k × case_count` (75 at `k = 5`) —
-using a two-proportion z-test with a pooled variance estimate. The two-sided
-p-value comes from the normal survival function (`math.erfc`). The suite is called
-a regression when `p < 0.05` **and** the current rate is below the baseline rate.
+Here we compare total passes across every case, which is `k` times the number of
+cases, so 75 runs at `k = 5`. We use a two proportion z test with a pooled variance
+estimate, and the two sided p value comes from the normal survival function
+(`math.erfc`). The suite counts as a regression when the p value is below 0.05 and
+the current rate really is below the baseline rate.
 
-The suite aggregate is the number to trust for "did this change make things worse
-overall," because pooling 75 observations gives a meaningfully tighter interval
-than any single case's 5.
+The suite number is the one to trust when you ask whether a change made things worse
+overall, because pooling 75 observations gives a much tighter interval than any
+single case's 5 ever could.
 
-## Step 4 — the honest limitation
+## Step 4: the honest limitation
 
-At `k = 5`, the per-case test detects a drop from ~100% to ~20% and essentially
-nothing subtler. Given more budget the fix is one of:
+At `k = 5` the per case test can see a drop from about 100 percent to about 20
+percent and basically nothing more subtle than that. With more budget there are two
+honest ways forward.
 
-1. **Raise `k`** for the cases that matter most (injection, grounded correctness),
-   accepting the token cost, or
-2. Treat **per-case results as a debugging aid** and make the **suite aggregate the
-   actual gate** — which is the stance this project takes.
+1. Raise `k` on the cases you care about most, such as injection and grounded
+   correctness, and accept the extra token cost.
+2. Treat the per case results as a debugging aid and let the suite aggregate be the
+   real gate. That is the stance this project takes.
 
-We deliberately did **not** build a significance test we can't explain. A clearly
-documented threshold rule beats a p-value nobody can defend in a conversation.
+We deliberately did not build a fancy significance test we cannot explain. A
+threshold rule you can describe in one sentence beats a p value nobody can defend in
+a conversation.
 
-### The ceiling effect (why every Wilson bound is identical)
+### The ceiling effect, or why every Wilson bound is the same
 
-The current baseline passes 5/5 on every case, so every per-case Wilson lower bound
-is the same number (57% at `k=5`). Two consequences worth naming:
+The current baseline passes 5/5 on every single case, so every per case Wilson lower
+bound comes out to the same 57 percent at `k = 5`. Two things follow from that, and
+both are worth saying out loud.
 
-- The suite can detect **regressions but not improvements** — there is no headroom
-  above 5/5 to move into.
-- A regression must be **large** to clear the interval: a case has to fall to 2/5 or
-  worse (40% < 57%) before the per-case check flags it.
+- The suite can spot regressions but not improvements, because there is no room above
+  5/5 to move into.
+- A regression has to be large to clear the interval. A case has to fall all the way
+  to 2/5, which is 40 percent, before the per case check reacts.
 
-This is expected and fine for a strong agent on a passing suite. It is also exactly
-why the mutation section carries the weight of "the tests work": an all-green
-baseline proves the agent behaves, not that the suite would notice if it stopped.
+That is fine and expected for a strong agent on a passing suite. It is also the
+reason the mutation section carries the real weight of showing that the tests work.
+An all green baseline only proves the agent behaves. It does not prove the suite
+would notice if the agent stopped behaving.
 
 ## A note on the LLM judge
 
-Exactly one case (`F_closed_account_balance`) uses `JudgedBy`, because the thing
-under test there is the *wording* ("did it clearly communicate it cannot answer").
-The judge is:
+Exactly one case, `F_closed_account_balance`, uses `JudgedBy`, because the thing
+actually under test there is the wording, whether the agent clearly communicates
+that it cannot answer. The judge runs on a few deliberate rules.
 
-- pinned to a **separate** model (`JUDGE_MODEL = claude-sonnet-5`), recorded distinctly;
-- given a **binary** rubric, not a 1–5 score;
-- run `k` times per repetition with a **majority** vote;
-- **flagged distinctly** in the report, because it carries its own noise.
+- It is pinned to a separate model, `JUDGE_MODEL = claude-sonnet-5`, and recorded on
+  its own.
+- It gets a yes or no rubric rather than a 1 to 5 score.
+- It runs `k` times for each repetition and takes the majority vote.
+- It is flagged clearly in the report, because it carries noise of its own.
 
-Everywhere else a mechanical check does the job (e.g. `MentionsNoneOf(["0.00"])`
-for injection), and mechanical checks are always preferred.
+Everywhere else a mechanical check does the job. The injection cases, for example,
+use `DoesNotReportZeroBalance`, which reads the reported numbers rather than guessing
+at wording. A mechanical check wins whenever one is available.

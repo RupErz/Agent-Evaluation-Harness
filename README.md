@@ -12,13 +12,13 @@ agent is scaffolding; the harness is the point.
 
 ## How it works
 
-![System flow: 15 test questions feed the harness, which drives the agent under test (Claude Haiku) against fixture data; the checks compare expected vs actual (with one wording check by Claude Sonnet) and produce a pass/fail/flaky report.](docs/eval_harness_system_flow.png)
+![System flow: 15 test cases feed the harness (runner and tools), which drives the agent under test (Claude Haiku) against seeded fixture data. The assertions compare the recorded trace against expectations computed from the fixture, with one wording check delegated to a Claude Sonnet judge, and produce a pass/flaky/fail report.](docs/eval_harness_system_flow_v2.png)
 
-Test questions go to the harness, which runs the agent (Claude Haiku) against
-committed fixture data and records every tool call. The checks compare what the
-agent did against expectations computed from the fixture — with one wording check
-delegated to a separate judge (Claude Sonnet) — and the result is a pass/fail/flaky
-report.
+The 15 test cases feed the harness, which runs the agent (Claude Haiku) against
+seeded fixture data and records every tool call. The assertions compare the recorded
+trace against expectations computed from the fixture, with one wording check
+delegated to a separate judge (Claude Sonnet), and the result is a pass, flaky, or
+fail report.
 
 ## What it tests
 
