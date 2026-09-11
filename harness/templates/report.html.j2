@@ -29,6 +29,10 @@
   .tile.fail .n { color:var(--fail); }
   .suiteline { color:var(--muted); font-size:13px; margin:10px 2px 22px; }
   .suiteline b { color:var(--fg); }
+  .intro { margin:0 0 22px; }
+  .intro h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--accent); margin:16px 0 4px; }
+  .intro p { margin:0; color:var(--fg); max-width:70ch; }
   .cmp { background:var(--panel); border:1px solid var(--line); border-radius:8px;
     padding:14px 16px; margin-bottom:22px; }
   .cmp.reg { border-color:var(--fail); }
@@ -77,6 +81,17 @@
 <div class="wrap">
   <h1>Agent Evaluation Report</h1>
   <div class="sub">generated {{ generated }}</div>
+
+  <section class="intro">
+    <h2>What this is</h2>
+    <p>A testing tool for AI agents. AI gives a slightly different answer every time
+    you ask it something, so when you change how an agent works, you have no easy way
+    to tell if you broke it.</p>
+    <h2>What you are looking at</h2>
+    <p>{{ cases|length }} test questions, each asked {{ k }} times. Green means the
+    agent got it right every time. Red means it got it wrong. Amber means it was right
+    some of the time but not always. Click any row to see exactly what the agent did.</p>
+  </section>
 
   <div class="meta">
     <span><b>model</b> {{ model }}</span>
