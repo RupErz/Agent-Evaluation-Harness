@@ -144,6 +144,12 @@ Two findings worth calling out, both surfaced *by* mutation testing:
 
 - **Small `k`.** At `k=5` the per-case test only catches large drops (~100%→20%);
   the suite aggregate is the real gate. See design.md.
+- **100% baseline (ceiling effect).** Every case currently passes 5/5, so every
+  per-case Wilson lower bound is identical (57%) and the suite can only detect
+  regressions, never improvements. A regression has to be fairly large to clear the
+  interval: a case must fall to 2/5 or worse to flag. That is expected for a strong
+  agent on a passing suite, and the mutation section is what shows the tests can go
+  red.
 - **One model.** Baselines are model-specific; migrating models means re-baselining.
   Haiku 4.5 is used because it is cheap and fails enough cases to prove the suite
   bites; a Sonnet-5 comparison run is a useful second data point.
