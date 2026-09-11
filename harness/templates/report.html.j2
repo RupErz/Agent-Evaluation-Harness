@@ -1,3 +1,34 @@
+{% macro trace_block(d, title) -%}
+<div class="trace">
+  <h4>{{ title }}</h4>
+  <div class="kv">termination: {{ d.termination_reason }} ·
+    steps: {{ d.total_steps }} · tokens: {{ d.tokens_in }}/{{ d.tokens_out }}</div>
+  <pre class="kv">input: {{ d.input }}</pre>
+  {% for tc in d.tool_calls %}
+  <div class="tc {{ 'err' if tc.error else '' }}">
+    <span class="kv">step {{ tc.step }}</span> ·
+    <span class="tn">{{ tc.tool_name }}</span>({{ tc.arguments }})
+    <div class="kv">→ {{ tc.result }}{% if tc.error %} <span class="afail">ERROR: {{ tc.error }}</span>{% endif %}</div>
+  </div>
+  {% else %}
+  <div class="kv">(no tool calls)</div>
+  {% endfor %}
+  <div class="fo">
+    <div class="kv">final output:</div>
+    <pre>{{ d.final_output or '(empty)' }}</pre>
+    {% if d.parse_error %}<pre class="afail">parse_error: {{ d.parse_error }}</pre>{% endif %}
+  </div>
+  <div style="margin-top:10px">
+    {% for a in d.assertions %}
+    <div class="arow">
+      <span class="{{ 'apass' if a.passed else 'afail' }}">{{ '✓' if a.passed else '✗' }}</span>
+      <span>{{ a.name }}</span>
+      {% if not a.passed %}<span class="afail">: {{ a.message }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{%- endmacro %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -39,6 +70,21 @@
   .cmp table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
   .cmp th,.cmp td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--line); }
   .cmp tr.reg td { color:var(--fail); }
+  .mut { background:var(--panel); border:1px solid var(--accent); border-radius:8px;
+    padding:16px; margin-bottom:22px; }
+  .mut-h { font-size:15px; margin:0 0 6px; }
+  .mut-p { color:var(--muted); font-size:13px; margin:0 0 10px; max-width:75ch; }
+  .mut code { font-family:var(--mono); color:var(--accent); }
+  .mut table { width:100%; border-collapse:collapse; font-size:12px; }
+  .mut th,.mut td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line);
+    vertical-align:top; }
+  .mtag { display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 6px;
+    border-radius:4px; margin:1px 2px; white-space:nowrap; }
+  .mtag.red { background:rgba(248,81,73,.16); color:var(--fail); }
+  .mtag.green { background:rgba(63,185,80,.15); color:var(--pass); }
+  .mres { font-weight:700; font-size:11px; text-transform:uppercase; }
+  .mres.ok { color:var(--pass); } .mres.mi { color:var(--flaky); } .mres.bad { color:var(--fail); }
+  .mnote { color:var(--muted); font-size:11px; font-style:italic; padding-top:2px; }
   details.case { background:var(--panel); border:1px solid var(--line);
     border-radius:8px; margin-bottom:10px; overflow:hidden; }
   details.case[open] { border-color:var(--accent); }
@@ -136,6 +182,35 @@
   </div>
   {% endif %}
 
+  {% if mutation_evidence %}
+  <div class="mut">
+    <h2 class="mut-h">Proof the tests actually catch failures</h2>
+    <p class="mut-p">Fifteen green rows show the agent behaves. They do not show the
+    tests would notice if it stopped. So we deliberately break the agent five ways and
+    check that the right cases turn red. That is the difference between claiming the
+    tests work and showing it.</p>
+    <table>
+      <tr><th>How the agent was broken</th><th>Cases run under the break</th><th>Result</th></tr>
+      {% for m in mutation_evidence.mutations %}
+      <tr>
+        <td>{{ m.description }}</td>
+        <td>{% for c in m.cases %}<span class="mtag {{ 'red' if c.red else 'green' }}">{{ c.id }} {{ c.pass_count }}/{{ c.k }}</span> {% endfor %}</td>
+        <td>{% if m.caught %}<span class="mres ok">caught</span>{% elif m.model_intrinsic %}<span class="mres mi">model-intrinsic</span>{% else %}<span class="mres bad">missed</span>{% endif %}</td>
+      </tr>
+      {% if m.note %}<tr><td colspan="3" class="mnote">{{ m.note }}</td></tr>{% endif %}
+      {% endfor %}
+    </table>
+    {% if mutation_evidence.featured %}
+    {% set f = mutation_evidence.featured %}
+    <p class="mut-p" style="margin-top:14px">One of those failures in full. With the
+    <code>{{ f.broke }}</code>, case <b>{{ f.id }}</b> goes red because the assertions
+    below fire on what the agent actually did:</p>
+    {{ trace_block(f.detail, f.id ~ ' under: ' ~ f.broke) }}
+    {% endif %}
+    <div class="sub" style="margin-top:8px">Full pass: <code>python -m harness.mutate</code>. Details in the README mutation table.</div>
+  </div>
+  {% endif %}
+
   {% for c in cases %}
   <details class="case" {{ 'open' if c.outcome != 'pass' else '' }}>
     <summary>
@@ -156,36 +231,7 @@
         {% endfor %}
       </div>
       {% if c.first_fail %}
-      <div class="trace">
-        <h4>first failing repetition (#{{ c.first_fail.rep }})</h4>
-        <div class="kv">termination: {{ c.first_fail.termination_reason }} ·
-          steps: {{ c.first_fail.total_steps }} ·
-          tokens: {{ c.first_fail.tokens_in }}/{{ c.first_fail.tokens_out }}</div>
-        <pre class="kv">input: {{ c.first_fail.input }}</pre>
-        {% for tc in c.first_fail.tool_calls %}
-        <div class="tc {{ 'err' if tc.error else '' }}">
-          <span class="kv">step {{ tc.step }}</span> ·
-          <span class="tn">{{ tc.tool_name }}</span>({{ tc.arguments }})
-          <div class="kv">→ {{ tc.result }}{% if tc.error %} <span class="afail">ERROR: {{ tc.error }}</span>{% endif %}</div>
-        </div>
-        {% else %}
-        <div class="kv">(no tool calls)</div>
-        {% endfor %}
-        <div class="fo">
-          <div class="kv">final output:</div>
-          <pre>{{ c.first_fail.final_output or '(empty)' }}</pre>
-          {% if c.first_fail.parse_error %}<pre class="afail">parse_error: {{ c.first_fail.parse_error }}</pre>{% endif %}
-        </div>
-        <div style="margin-top:10px">
-          {% for a in c.first_fail.assertions %}
-          <div class="arow">
-            <span class="{{ 'apass' if a.passed else 'afail' }}">{{ '✓' if a.passed else '✗' }}</span>
-            <span>{{ a.name }}</span>
-            {% if not a.passed %}<span class="afail">— {{ a.message }}</span>{% endif %}
-          </div>
-          {% endfor %}
-        </div>
-      </div>
+      {{ trace_block(c.first_fail, 'first failing repetition (#' ~ c.first_fail.rep ~ ')') }}
       {% endif %}
     </div>
   </details>

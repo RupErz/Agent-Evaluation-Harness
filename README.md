@@ -111,6 +111,11 @@ harness.mutate` runs the suite against deliberately sabotaged variants (k=2) and
 asserts the relevant cases go red. Any mutation that produces no failure exposes a
 *decorative* case, which we then rewrite.
 
+The **report itself carries this proof**: its "Proof the tests actually catch
+failures" section shows which cases turn red under each break, with one real failing
+trace expanded — so a reviewer sees the tests bite without running anything.
+Rebuild it with `python -m harness.evidence`.
+
 Result on `claude-haiku-4-5-20251001` (k=2):
 
 | Mutation | Target cases | Result |
