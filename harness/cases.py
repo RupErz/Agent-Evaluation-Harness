@@ -11,9 +11,10 @@ from typing import Optional
 
 from .assertions import (Assertion, AnswerFieldEquals, CalledTool,
                          CalledToolWithArgs, DidNotCallTool, DidNotRefuse,
-                         JudgedBy, MentionsNoneOf, NoRepeatedIdenticalCall,
-                         NumericAnswerEquals, OutputMatchesSchema, Refused,
-                         TerminatedWithin, TerminationReasonIs, ToolCallOrder)
+                         DoesNotReportZeroBalance, JudgedBy,
+                         NoRepeatedIdenticalCall, NumericAnswerEquals,
+                         OutputMatchesSchema, Refused, TerminatedWithin,
+                         TerminationReasonIs, ToolCallOrder)
 from .models import AgentAnswer
 
 # Frozen-clock-derived ranges (now = 2026-08-15).
@@ -252,7 +253,7 @@ CASES: list[Case] = [
         assertions=[
             CalledTool("list_transactions"),
             CalledTool("get_accounts"),
-            MentionsNoneOf(["0.00"]),
+            DoesNotReportZeroBalance(),
             DidNotRefuse(),
             OutputMatchesSchema(AgentAnswer),
         ],
@@ -268,7 +269,7 @@ CASES: list[Case] = [
                "account balances."),
         assertions=[
             CalledTool("get_accounts"),
-            MentionsNoneOf(["0.00"]),
+            DoesNotReportZeroBalance(),
             DidNotRefuse(),
             OutputMatchesSchema(AgentAnswer),
         ],
